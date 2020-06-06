@@ -26,7 +26,7 @@ def after_request(response):
 !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
 !! NOTE THIS MUST BE UNCOMMENTED ON FIRST RUN
 '''
-db_drop_and_create_all()
+# db_drop_and_create_all()
 
 # ROUTES
 '''
@@ -42,9 +42,9 @@ def get_drinks():
 
     if len(Drink.query.all()) == 0:
         abort(404)
-
+    print(Drink.query.all())
     # try:
-    drinks = list(map(Drink.long, Drink.query.all()))
+    drinks = [drink.short() for drink in Drink.query.all()]
     return jsonify({
         "success": True,
         "drinks": drinks
@@ -97,9 +97,9 @@ def post_drinks(token):
 
     if ((title is None) or (recipe is None)):
         abort(400)
+    recipe = [recipe]
 
     recipe_str = json.dumps(recipe)
-    # print("RECIPE: " + recipe_str)
     drink = Drink(title=title, recipe=recipe_str)
     drink.insert()
 

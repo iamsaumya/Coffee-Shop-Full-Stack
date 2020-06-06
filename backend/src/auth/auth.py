@@ -5,9 +5,9 @@ from jose import jwt
 from urllib.request import urlopen
 
 
-AUTH0_DOMAIN = 'udacity-fsnd.auth0.com'
+AUTH0_DOMAIN = 'coffeeshopudacity.auth0.com'
 ALGORITHMS = ['RS256']
-API_AUDIENCE = 'dev'
+API_AUDIENCE = 'coffee'
 
 # AuthError Exception
 '''
@@ -39,7 +39,7 @@ def get_token_auth_header():
         bearer_token = request.headers['Authorization']
         bearer_token_array = bearer_token.split(" ")
 
-        if(bearer_token_array['0'].lower() == "bearer" and bearer_token_array[1]):
+        if(bearer_token_array[0].lower() == "bearer" and bearer_token_array[1]):
             return bearer_token_array[1]
     raise AuthError({
         "code": "invalid_header",
@@ -62,7 +62,7 @@ def get_token_auth_header():
 
 def check_permissions(permission, payload):
     if('permissions' in payload):
-        if(payload[permission]):
+        if(permission in payload['permissions']):
             return True
     raise AuthError({
         "code": "invalid_claims",

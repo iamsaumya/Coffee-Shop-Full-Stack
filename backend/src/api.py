@@ -11,6 +11,16 @@ app = Flask(__name__)
 setup_db(app)
 CORS(app)
 
+
+@app.after_request
+def after_request(response):
+    header = response.headers
+    header['Access-Control-Allow-Origin'] = '*'
+    header['Access-Control-Allow-Headers'] = 'Authorization, Content-Type, true'
+    header['Access-Control-Allow-Methods'] = 'POST,GET,PUT,DELETE,PATCH,OPTIONS'
+    return response
+
+
 '''
 @TODO uncomment the following line to initialize the datbase
 !! NOTE THIS WILL DROP ALL RECORDS AND START YOUR DB FROM SCRATCH
@@ -27,18 +37,20 @@ db_drop_and_create_all()
     returns status code 200 and json {"success": True, "drinks": drinks} where drinks is the list of drinks
         or appropriate status code indicating reason for failure
 '''
-@app.route("/drinks", methods=["GET"])
+@app.route("/drinks")
 def get_drinks():
-    try:
-        if len(Drink.query.all()) == 0:
-            abort(404)
-        drinks = [drink.short() for drink in Drink.query.all()]
-        return jsonify({
-            "success": True,
-            "drinks": drinks
-        })
-    except:
-        abort(422)
+
+    if len(Drink.query.all()) == 0:
+        abort(404)
+
+    # try:
+    drinks = list(map(Drink.long, Drink.query.all()))
+    return jsonify({
+        "success": True,
+        "drinks": drinks
+    })
+    # except:
+    #     abort(422)
 
 
 '''
@@ -50,11 +62,12 @@ def get_drinks():
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks-detail')
-def get_drink_detail():
+@requires_auth("get:drinks-detail")
+def get_drink_detail(token):
+    if len(Drink.query.all()) == 0:
+        abort(404)
     try:
-        if len(Drink.query.all()) == 0:
-            abort(404)
-        drinks = [drink.short() for drink in Drink.query.all()]
+        drinks = list(map(Drink.long, Drink.query.all()))
         return jsonify({
             "success": True,
             "drinks": drinks
@@ -74,26 +87,26 @@ def get_drink_detail():
 '''
 
 
-@app.route("/drinks", methods["POST"])
-def post_drinks():
+@app.route("/drinks", methods=["POST"])
+@requires_auth("post:drinks")
+def post_drinks(token):
     data = request.get_json()
 
-    title = data.get('title')
-    receipe = data.get('receipe')
+    title = data.get('title', None)
+    recipe = data.get('recipe', None)
 
-    if ((title is None) or (receipe is None)):
+    if ((title is None) or (recipe is None)):
         abort(400)
 
-    try:
-        drink = Drink(title=title, receipe=json.dumps(receipe))
-        drink.insert()
+    recipe_str = json.dumps(recipe)
+    # print("RECIPE: " + recipe_str)
+    drink = Drink(title=title, recipe=recipe_str)
+    drink.insert()
 
-        return jsonify({
-            "success": True,
-            "drinks": drink.long()
-        })
-    except:
-        abort(422)
+    return jsonify({
+        "success": True,
+        "drinks": drink.long()
+    })
 
 
 '''
@@ -108,7 +121,8 @@ def post_drinks():
         or appropriate status code indicating reason for failure
 '''
 @app.route("/drinks/<int:id>", methods=["PATCH"])
-def patch_drinks(id):
+@requires_auth("patch:drinks")
+def patch_drinks(token, id):
 
     drink = Drink.query.get(id)
 
@@ -118,17 +132,17 @@ def patch_drinks(id):
     try:
         data = request.get_json()
 
-        if(data.get('title')):
-            drink.title = data.get('title')
+        if('title' in data):
+            setattr(drink, 'title', data['title'])
 
-        if(data.get('receipe')):
-            drink.receipe = data.get('receipe')
+        if('recipe' in data):
+            setattr(drink, 'recipe', json.dumps(data['recipe']))
 
         drink.update()
 
         return jsonify({
             "success": True,
-            "drinks": drink.long()
+            "drinks": list(map(Drink.long, Drink.query.all()))
         })
     except:
         abort(422)
@@ -145,7 +159,8 @@ def patch_drinks(id):
         or appropriate status code indicating reason for failure
 '''
 @app.route('/drinks/<int:id>', methods=['DELETE'])
-def delete_drinks(id):
+@requires_auth("delete:drinks")
+def delete_drinks(token, id):
     drink = Drink.query.get(id)
     if(drink is None):
         abort(404)
@@ -160,9 +175,7 @@ def delete_drinks(id):
 
 
 # Error Handling
-'''
-Example error handling for unprocessable entity
-'''
+
 @app.errorhandler(422)
 def unprocessable(error):
     return jsonify({
@@ -172,16 +185,6 @@ def unprocessable(error):
     }), 422
 
 
-'''
-@TODO implement error handlers using the @app.errorhandler(error) decorator
-    each error handler should return (with approprate messages):
-             jsonify({
-                    "success": False, 
-                    "error": 404,
-                    "message": "resource not found"
-                    }), 404
-
-'''
 @app.errorhandler(404)
 def unprocessable(error):
     return jsonify({
@@ -191,10 +194,6 @@ def unprocessable(error):
     }), 404
 
 
-'''
-@TODO implement error handler for 404
-    error handler should conform to general task above 
-'''
 @app.errorhandler(400)
 def unprocessable(error):
     return jsonify({
@@ -204,12 +203,15 @@ def unprocessable(error):
     }), 400
 
 
-'''
-@TODO implement error handler for AuthError
-    error handler should conform to general task above 
-'''
+@app.errorhandler(401)
+def unauthorized(error):
+    return jsonify({
+        'success': False,
+        'error': 401,
+        'message': 'unauthorized'
+    }), 401
+
+
 @app.errorhandler(AuthError)
 def auth_error(error):
-    return jsonify({
-        error.error,
-    }), error.status_code
+    return jsonify(error.error), error.status_code

@@ -42,7 +42,6 @@ def get_drinks():
 
     if len(Drink.query.all()) == 0:
         abort(404)
-    print(Drink.query.all())
     # try:
     drinks = [drink.short() for drink in Drink.query.all()]
     return jsonify({
